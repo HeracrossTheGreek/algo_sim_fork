@@ -25,6 +25,8 @@ void print_gsl_matrix(gsl_matrix *matrix, int dim);
 void print_gsl_vector(gsl_vector *vector, int dim);
 void free_gsl();
 void solve_dc_sweep_system(gsl_vector *temp_gsl_b, double cur_value, char type);
+void solve_dc_sweep_system_sparse(double *temp_gsl_b, double cur_value, char type);
+void solve_dc_sweep_system_sparse_iter(gsl_vector *temp_gsl_b, double cur_value, char type);
 void add_to_plot_file(double b_vector_value, double x_vector_value, int i);
 
 void gslErrorHandler(const char *reason, const char *file, int line, int gsl_errno);
@@ -34,5 +36,7 @@ void free_plot_node();
 
 void solve_dc_system(int solver_type);
 void dc_sweep();
+void dc_sweep_sparse();
+void dc_sweep_sparse_iter();
 
 #endif

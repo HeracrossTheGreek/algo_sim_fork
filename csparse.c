@@ -507,7 +507,6 @@ csn *cs_chol (const cs *A, const css *S)
 	Lx [p] = sqrt (d) ;
     }
     Lp [n] = cp [n] ;		    /* finalize L */
-    printf("HAHA 5\n");
     return (cs_ndone (N, E, w, x, 1)) ; /* success: free E,w,x; return N */
 }
 

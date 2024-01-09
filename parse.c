@@ -22,6 +22,9 @@ int solver_type = LU_SOL;
 double DC_arguments[3];
 float itol = 1e-3;
 int nonzeros = 0;
+int spd_flag_circuit = 1;
+
+char circuit_name[30];
 
 // This function counts the lines of the file //
 void number_of_lines(char* file_name){
@@ -68,6 +71,9 @@ void parse(char* file_name) {
         exit(1);
     }
 
+    strcpy(circuit_name, strtok(file_name+6, "."));
+    //strcpy(circuit_name, circuit_name+6);
+    printf("Circuit name is %s\n", circuit_name);
     // Parse every line until end of file
     while (fgets(line, LINE_MAX, input_file) != NULL) {
 
@@ -132,6 +138,7 @@ int parse_line(char* line) {
     // An index number is assigned for the respective component struct field
 
     if ((check_for_V_or_L(comp_type)) == TRUE) {
+        spd_flag_circuit = 0;
         m2_i = m2;
         add_m2_array(comp_name);
         m2++;
@@ -302,7 +309,7 @@ int parse_plot_arg(char *token) {
 int parse_spice_command(char* token)
 {
 
-    int parsing_result;
+    int parsing_result = 0;
     // .options //
     if (strcmp(str_tolower(token), ".options") == 0)
     {
@@ -340,6 +347,10 @@ int option_command(char* token) {
 
         else if (strcmp(str_tolower(token), "spd") == 0) {
             spd_flag = 1;
+            if (spd_flag_circuit == 0) {
+                printf("Error! System is not SPD!\n");
+                return PARSING_ERROR;
+            }
         }
 
         else if (strcmp(str_tolower(token), "iter") == 0) {

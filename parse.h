@@ -32,6 +32,8 @@ extern double DC_arguments[3];  // The three arguments to .dc: Low, High, Step
 extern int sweep_flag; // When this flag is raised, do dc_sweep
 extern float itol; // tolerance as exit condition for iterative solver
 extern int nonzeros; // Number of nonzeros, used by sparse structures
+extern char circuit_name[30];
+extern int spd_flag;
 
 extern int A_dim;
 
