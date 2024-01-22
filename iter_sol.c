@@ -16,7 +16,7 @@
 
 // Algorithm for the CG algorithm, which is used to solve SPD systems iteratively
 
-void solve_cg(gsl_vector* cur_gsl_b, gsl_vector* cur_gsl_x) {
+void solve_cg(gsl_matrix *gsl_A, gsl_vector* cur_gsl_b, gsl_vector* cur_gsl_x) {
 
     int max_iter = A_dim;   // A_dim = n
 
@@ -46,7 +46,7 @@ void solve_cg(gsl_vector* cur_gsl_b, gsl_vector* cur_gsl_x) {
 
         i++;
 
-        gsl_z = preconditioner_solve(gsl_r, gsl_z);    // Solve Mz = r
+        gsl_z = preconditioner_solve(gsl_A, gsl_r, gsl_z);    // Solve Mz = r
 
         gsl_blas_ddot(gsl_r, gsl_z, &rho);   // dot(r,z)
 
@@ -82,7 +82,7 @@ void solve_cg(gsl_vector* cur_gsl_b, gsl_vector* cur_gsl_x) {
 
 }
 
-void solve_bicg(gsl_vector* cur_gsl_b, gsl_vector* cur_gsl_x) {
+void solve_bicg(gsl_matrix *gsl_A, gsl_vector* cur_gsl_b, gsl_vector* cur_gsl_x) {
 
 
     int max_iter = A_dim;   // A_dim = n
@@ -121,8 +121,8 @@ void solve_bicg(gsl_vector* cur_gsl_b, gsl_vector* cur_gsl_x) {
 
         i++;
 
-        gsl_z = preconditioner_solve(gsl_r, gsl_z);    // Solve Mz = r
-        gsl_z_bicg = preconditioner_solve(gsl_r_bicg, gsl_z_bicg);    // Solve Mz' = r'
+        gsl_z = preconditioner_solve(gsl_A, gsl_r, gsl_z);    // Solve Mz = r
+        gsl_z_bicg = preconditioner_solve(gsl_A, gsl_r_bicg, gsl_z_bicg);    // Solve Mz' = r'
 
         gsl_blas_ddot(gsl_r_bicg, gsl_z, &rho);   // dot(r',z)
 
@@ -179,7 +179,7 @@ void solve_bicg(gsl_vector* cur_gsl_b, gsl_vector* cur_gsl_x) {
 // This function executes the preconditioning process, filling vector gsl_z
 // Element i of gsl_z[i] = r[i] * 1/A[i][i]
 
-gsl_vector* preconditioner_solve(gsl_vector *gsl_r, gsl_vector *gsl_z) {
+gsl_vector* preconditioner_solve(gsl_matrix *gsl_A, gsl_vector *gsl_r, gsl_vector *gsl_z) {
 
     //gsl_vector *gsl_z = gsl_vector_alloc(A_dim);
     double cur_A_element;
@@ -204,7 +204,7 @@ gsl_vector* preconditioner_solve(gsl_vector *gsl_r, gsl_vector *gsl_z) {
 //////////////////////////////////////////////////////////////////////
 
 // Sparse implementation of the CG algorithm, which is used to solve SPD systems iteratively
-void solve_sparse_cg(gsl_vector* cur_gsl_b, gsl_vector* cur_gsl_x) {
+void solve_sparse_cg(cs *sparse_cc_A, gsl_vector* cur_gsl_b, gsl_vector* cur_gsl_x) {
 
     int max_iter = A_dim;
 
@@ -278,7 +278,7 @@ void solve_sparse_cg(gsl_vector* cur_gsl_b, gsl_vector* cur_gsl_x) {
 
 }
 // Sparse implementation of the BiCG algorithm, which is used to solve non-SPD systems iteratively
-void solve_sparse_bicg(gsl_vector* cur_gsl_b, gsl_vector* cur_gsl_x) {
+void solve_sparse_bicg(cs *sparse_cc_A, gsl_vector* cur_gsl_b, gsl_vector* cur_gsl_x) {
 
     int max_iter = A_dim;
 

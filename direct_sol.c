@@ -57,7 +57,7 @@ void form_chol() {
 }
 
 // This function solves the LU system using sparse methods
-void solve_sparse_lu(gsl_vector* cur_gsl_b, gsl_vector* cur_gsl_x){
+void solve_sparse_lu(cs* sparse_cc_A, gsl_vector* cur_gsl_b, gsl_vector* cur_gsl_x){
 
     double* temp_b = malloc(A_dim*sizeof(double *));
     double* temp_x = malloc(A_dim*sizeof(double *));
@@ -88,7 +88,7 @@ void solve_sparse_lu(gsl_vector* cur_gsl_b, gsl_vector* cur_gsl_x){
 }
 
 // This function solves the system with the Cholesky algorithm using sparse methods
-void solve_sparse_chol(gsl_vector* cur_gsl_b, gsl_vector* cur_gsl_x){
+void solve_sparse_chol(cs* sparse_cc_A, gsl_vector *cur_gsl_b, gsl_vector* cur_gsl_x){
 
     double* temp_b = malloc(A_dim*sizeof(double *));
     double* temp_x = malloc(A_dim*sizeof(double *));
@@ -128,5 +128,18 @@ void solve_LU_with_args(gsl_matrix *gsl_A, gsl_vector *gsl_x, gsl_vector *gsl_b)
     gsl_linalg_LU_decomp(gsl_LU, gsl_p, &signnum);
 
     gsl_linalg_LU_solve(gsl_LU, gsl_p, gsl_b, gsl_x);
+
+}
+
+// A cholesky function with the matrices determined in the arguments
+void solve_chol_with_args(gsl_matrix *gsl_A, gsl_vector *gsl_x, gsl_vector *gsl_b) {
+    
+    gsl_matrix* gsl_chol = gsl_matrix_alloc(A_dim, A_dim);
+    gsl_matrix_memcpy(gsl_chol, gsl_A);
+
+    gsl_linalg_cholesky_decomp1(gsl_chol);
+
+    gsl_linalg_cholesky_solve(gsl_chol, gsl_b, gsl_x);
+
 
 }

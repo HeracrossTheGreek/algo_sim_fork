@@ -124,22 +124,22 @@ void solve_dc_sweep_system(gsl_vector *temp_gsl_b, double cur_value) {
         gsl_linalg_cholesky_solve(gsl_chol, temp_gsl_b, temp_gsl_x);
     }
     else if (solver_type == CG_SOL) {
-        solve_cg(temp_gsl_b, temp_gsl_x);
+        solve_cg(gsl_A, temp_gsl_b, temp_gsl_x);
     }
     else if (solver_type == BICG_SOL) {
-        solve_bicg(temp_gsl_b, temp_gsl_x);
+        solve_bicg(gsl_A, temp_gsl_b, temp_gsl_x);
     }
     else if (solver_type == SPARSE_LU_SOL) {
-        solve_sparse_lu(temp_gsl_b, temp_gsl_x);
+        solve_sparse_lu(sparse_cc_A, temp_gsl_b, temp_gsl_x);
     }
     else if (solver_type == SPARSE_CHOL_SOL) {
-        solve_sparse_chol(temp_gsl_b, temp_gsl_x);
+        solve_sparse_chol(sparse_cc_A, temp_gsl_b, temp_gsl_x);
     }
     if (solver_type == SPARSE_CG_SOL) {
-        solve_sparse_cg(temp_gsl_b, temp_gsl_x);
+        solve_sparse_cg(sparse_cc_A, temp_gsl_b, temp_gsl_x);
     }
     else if (solver_type == SPARSE_BICG_SOL) {
-        solve_sparse_bicg(temp_gsl_b, temp_gsl_x);
+        solve_sparse_bicg(sparse_cc_A, temp_gsl_b, temp_gsl_x);
     }
 
     int i;
@@ -410,22 +410,22 @@ void solve_dc_system(int solver_type) {
         gsl_linalg_cholesky_solve(gsl_chol, gsl_b, gsl_x);
     }
     else if (solver_type == CG_SOL){
-        solve_cg(gsl_b, gsl_x);
+        solve_cg(gsl_A, gsl_b, gsl_x);
     }
     else if (solver_type == BICG_SOL){
-        solve_bicg(gsl_b, gsl_x);
+        solve_bicg(gsl_A, gsl_b, gsl_x);
     }
     else if (solver_type == SPARSE_LU_SOL){
-        solve_sparse_lu(gsl_b, gsl_x);
+        solve_sparse_lu(sparse_cc_A, gsl_b, gsl_x);
     }
     else if (solver_type == SPARSE_CHOL_SOL){
-        solve_sparse_chol(gsl_b, gsl_x);
+        solve_sparse_chol(sparse_cc_A, gsl_b, gsl_x);
     }
     else if (solver_type == SPARSE_CG_SOL){
-        solve_sparse_cg(gsl_b, gsl_x);
+        solve_sparse_cg(sparse_cc_A, gsl_b, gsl_x);
     }
     else if (solver_type == SPARSE_BICG_SOL){
-        solve_sparse_bicg(gsl_b, gsl_x);
+        solve_sparse_bicg(sparse_cc_A, gsl_b, gsl_x);
     }
 
     t2 = clock();
@@ -526,7 +526,7 @@ void solve_tran_sweep_system(gsl_vector *temp_gsl_b, gsl_matrix* gsl_A, gsl_vect
         solve_LU_with_args(gsl_A, curr_gsl_x, temp_gsl_b);
     }
     else if (solver_type == CHOL_SOL) {
-        gsl_linalg_cholesky_solve(gsl_A, temp_gsl_b, curr_gsl_x);
+        solve_chol_with_args(gsl_A, curr_gsl_x, temp_gsl_b);
     }
     // else if (solver_type == CG_SOL) {
     //     solve_cg(temp_gsl_b, temp_gsl_x);
