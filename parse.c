@@ -211,7 +211,7 @@ int parse_line(char* line) {
     value = strtod(token, NULL);
 
     // String 5: (optional) Parse the type of math function (waveform)
-    token = strtok(NULL, " \t\r\n");
+    token = strtok(NULL, " \t\r\n(");
     if (token != NULL) {
         if (comp_type != 'v' && comp_type != 'i') {
             printf("Error! Can only have transient specs at V or I component!\n");
