@@ -95,7 +95,8 @@ int main(int argc, char* argv[]) {
         dc_sweep();
     }
     if (tran_sweep_flag == TRUE) {
-        tran_sweep();
+        if (solver_type<4) tran_sweep();
+        else tran_sweep_sparse();
     }
 
 
