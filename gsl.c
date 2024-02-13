@@ -10,7 +10,6 @@
 #include "structs.h"
 #include "parse.h"
 #include "sparse_sol.h"
-#include "csparse.h"
 #include "time.h"
 #include "transient.h"
 
@@ -70,6 +69,22 @@ void print_gsl_matrix(gsl_matrix *matrix, int dim){
 
 }
 
+// This function prints the specified complex gsl matrix. MUST be square
+void print_gsl_matrix_complex(gsl_matrix_complex *matrix, int dim){
+
+    int i,j;
+
+    printf("\n");
+    for (i = 0; i < dim; i++) {
+        for (j = 0; j < dim; j++) {
+            gsl_complex z = gsl_matrix_complex_get(matrix, i, j);
+            printf("%.2lf + i*%.2lf\t", GSL_REAL(z), GSL_IMAG(z));
+        }
+        printf("\n");
+    }
+
+}
+
 // This function prints the specified gsl vector
 void print_gsl_vector(gsl_vector *vector, int dim){
 
@@ -78,6 +93,18 @@ void print_gsl_vector(gsl_vector *vector, int dim){
     printf("\n");
     for (i = 0; i < dim; i++) {
         printf ("%.5lf\n", gsl_vector_get(vector, i));
+    }
+    printf("\n");
+
+}
+
+// This function prints the specified complex gsl vector
+void print_gsl_vector_complex(gsl_vector_complex *vector, int dim){
+
+    printf("\n");
+    for (int i = 0; i < dim; i++) {
+        gsl_complex z = gsl_vector_complex_get(vector, i);
+        printf("%.2lf + i*%.2lf\n", GSL_REAL(z), GSL_IMAG(z));
     }
     printf("\n");
 
@@ -124,22 +151,22 @@ void solve_dc_sweep_system(gsl_vector *temp_gsl_b, double cur_value) {
         gsl_linalg_cholesky_solve(gsl_chol, temp_gsl_b, temp_gsl_x);
     }
     else if (solver_type == CG_SOL) {
-        solve_cg(temp_gsl_b, temp_gsl_x);
+        solve_cg(gsl_A, temp_gsl_b, temp_gsl_x);
     }
     else if (solver_type == BICG_SOL) {
-        solve_bicg(temp_gsl_b, temp_gsl_x);
+        solve_bicg(gsl_A, temp_gsl_b, temp_gsl_x);
     }
     else if (solver_type == SPARSE_LU_SOL) {
-        solve_sparse_lu(temp_gsl_b, temp_gsl_x);
+        solve_sparse_lu(sparse_cc_A, temp_gsl_b, temp_gsl_x);
     }
     else if (solver_type == SPARSE_CHOL_SOL) {
-        solve_sparse_chol(temp_gsl_b, temp_gsl_x);
+        solve_sparse_chol(sparse_cc_A, temp_gsl_b, temp_gsl_x);
     }
     if (solver_type == SPARSE_CG_SOL) {
-        solve_sparse_cg(temp_gsl_b, temp_gsl_x);
+        solve_sparse_cg(sparse_cc_A, temp_gsl_b, temp_gsl_x);
     }
     else if (solver_type == SPARSE_BICG_SOL) {
-        solve_sparse_bicg(temp_gsl_b, temp_gsl_x);
+        solve_sparse_bicg(sparse_cc_A, temp_gsl_b, temp_gsl_x);
     }
 
     int i;
@@ -205,7 +232,7 @@ void add_to_plot_file(double b_vector_value, double x_vector_value, int i) {
     }
 
     // Write the values to the file
-    fprintf(filePointers[i], "%lf %lf\n", b_vector_value, x_vector_value);
+    fprintf(filePointers[i], "%.3e %.6e\n", b_vector_value, x_vector_value);
 
     // Flush the file buffer to ensure data is written immediately
     fflush(filePointers[i]);
@@ -225,12 +252,11 @@ void add_to_plot_file(double b_vector_value, double x_vector_value, int i) {
     fprintf(gnuplotScript, "%s", plot_command);
     fclose(gnuplotScript);
     
+    // // // Execute GNU Plot using the script file
+    // system("gnuplot plot_script.gnu");
 
-    // // Execute GNU Plot using the script file
-    system("gnuplot plot_script.gnu");
-
-    // // Clean up: remove the temporary script file
-    remove("plot_script.gnu");
+    // // // Clean up: remove the temporary script file
+    // remove("plot_script.gnu");
 }
 
 // This function frees the memory occupied by the plot node indexes
@@ -311,6 +337,10 @@ void tran_sweep() {
     gsl_vector *prev_gsl_x = gsl_vector_alloc(A_dim);
     gsl_vector *gsl_Cx = gsl_vector_alloc(A_dim);
     gsl_vector *curr_gsl_x = gsl_vector_alloc(A_dim);
+    gsl_vector *gsl_e = gsl_vector_alloc(A_dim);
+    gsl_vector *prev_temp_gsl_b = gsl_vector_alloc(A_dim);
+    gsl_vector *gsl_A2x = gsl_vector_alloc(A_dim);
+    gsl_matrix *gsl_A2 = gsl_matrix_alloc(A_dim, A_dim);
 
     gsl_vector_memcpy(temp_gsl_b, gsl_b);
     gsl_vector_memcpy(prev_gsl_x, gsl_x); // the dc solution
@@ -320,10 +350,6 @@ void tran_sweep() {
     component **tran_components = NULL;
     component *curr = head;
     int tran_components_size=0;
-
-    // print_gsl_matrix(gsl_A, A_dim);
-    // print_gsl_matrix(gsl_C, A_dim);
-    // print_gsl_vector(temp_gsl_b, A_dim);
 
     while (curr != NULL) {
         if (curr->spec_type != NO_SPEC) {
@@ -357,7 +383,7 @@ void tran_sweep() {
 
     if (tran_method == BE) {
 
-        // ---------- A ---------- // 
+        // Step 2: Create the A matrix 
 
         // a) Scale array C with 1/timestep. This destroys array C!
         gsl_matrix_scale(gsl_C, 1/tran_time_step);
@@ -365,27 +391,208 @@ void tran_sweep() {
         // b) Create G+C/h
         gsl_matrix_add(gsl_A, gsl_C); //gsl_A == G+C/h
 
+
+        // Step 3: For every time, create the b vector and call the matching solver
+        double t;
+
+        for (t=0+tran_time_step; t<=tran_fin_time; t=t+tran_time_step) {
+
+            // Create 1/h*Cx(tk-1)
+
+            gsl_blas_dgemv(CblasNoTrans, 1.0, gsl_C, prev_gsl_x, 0.0, gsl_Cx);
+
+            // Create e(tk)
+            create_BE_b_vector(temp_gsl_b, tran_components, tran_components_size, t);
+
+            // b vector is e(tk) + 1/h*Cx(tk-1)
+            gsl_vector_memcpy(gsl_e, temp_gsl_b);
+            gsl_vector_add(gsl_e, gsl_Cx);
+
+            // Solve the system
+            solve_tran_sweep_system(gsl_e, gsl_A, curr_gsl_x, t);
+
+            // Current x becomes previous x
+            gsl_vector_memcpy(prev_gsl_x, curr_gsl_x);
+
+        }
     }
 
-    // Step 3: For every time, create the b vector and call the matching solver
-    double t;
+     else { // if TR
 
-    for (t=0+tran_time_step; t<=tran_fin_time; t=t+tran_time_step) {
+        // Create A and some parts of b
+        
+        gsl_matrix_memcpy(gsl_A2, gsl_A);
 
-        // Create 1/h*Cx(tk-1)
-        gsl_blas_dgemv(CblasNoTrans, 1.0, gsl_C, prev_gsl_x, 0.0, gsl_Cx);
+        // a) Scale array C with 2/timestep. This destroys array C!
+        gsl_matrix_scale(gsl_C, 2/tran_time_step);
 
-        // Create e(tk)
-        create_BE_b_vector(temp_gsl_b, tran_components, tran_components_size, t);
+        // b) Create G+2C/h
+        gsl_matrix_add(gsl_A, gsl_C); //gsl_A == G+2C/h
 
-        // b vector is e(tk) + 1/h*Cx(tk-1)
-        gsl_vector_add(temp_gsl_b, gsl_Cx);
+        // c) Create G-2C/h
+        gsl_matrix_sub(gsl_A2, gsl_C); //gsl_A2 == G-2C/h
 
-        // Solve the system
-        solve_tran_sweep_system(temp_gsl_b, gsl_A, curr_gsl_x, t);
+        // d) create e(tk-1)
+        gsl_vector_memcpy(prev_temp_gsl_b, temp_gsl_b);
 
-        // Current x becomes previous x
-        gsl_vector_memcpy(prev_gsl_x, curr_gsl_x);
+
+        // Step 3: For every time, create the b vector and call the matching solver
+        double t;
+
+        for (t=0+tran_time_step; t<=tran_fin_time; t=t+tran_time_step) {
+
+            // Create (G-2C/h)*x(tk-1)
+            gsl_blas_dgemv(CblasNoTrans, 1.0, gsl_A2, prev_gsl_x, 0.0, gsl_A2x);
+
+            // Create e(tk)
+            create_BE_b_vector(temp_gsl_b, tran_components, tran_components_size, t);
+
+            // Create e(tk-1) - (G-2C/h)*x(tk-1)
+            gsl_vector_sub(prev_temp_gsl_b, gsl_A2x);
+
+            // Create e(tk) + e(tk-1) - (G-2C/h)*x(tk-1)
+            gsl_vector_memcpy(gsl_e, temp_gsl_b);
+            gsl_vector_add(gsl_e, prev_temp_gsl_b);
+
+            solve_tran_sweep_system(gsl_e, gsl_A, curr_gsl_x, t);
+
+            // Current x becomes previous x
+            gsl_vector_memcpy(prev_gsl_x, curr_gsl_x);
+            // Current e becomes previous e
+            gsl_vector_memcpy(prev_temp_gsl_b, temp_gsl_b);
+
+        }
+
+    }
+}
+
+// This function performs tran sweep for Sparse matrices: It solves the Ax =b system for all different times defined
+void tran_sweep_sparse() {
+
+    cs* sparse_tran_LHS;
+    cs* sparse_tran_RHS;
+    gsl_vector *temp_gsl_b = gsl_vector_alloc(A_dim);
+    gsl_vector *prev_gsl_x = gsl_vector_alloc(A_dim);
+    gsl_vector *gsl_Cx = gsl_vector_alloc(A_dim);
+    gsl_vector *curr_gsl_x = gsl_vector_alloc(A_dim);
+    gsl_vector *gsl_e = gsl_vector_alloc(A_dim);
+    gsl_vector *prev_temp_gsl_b = gsl_vector_alloc(A_dim);
+
+    gsl_vector *gsl_A2x = gsl_vector_alloc(A_dim);
+
+    gsl_vector_memcpy(temp_gsl_b, gsl_b);
+    gsl_vector_memcpy(prev_gsl_x, gsl_x); // the dc solution
+
+    // Step 1: Get the transient components and store their pointers
+
+    component **tran_components = NULL;
+    component *curr = head;
+    int tran_components_size=0;
+
+    while (curr != NULL) {
+        if (curr->spec_type != NO_SPEC) {
+
+            // Allocate memory for the new pointer
+            component** newPointer = (component**) malloc(sizeof(component*));
+            if (newPointer == NULL) {
+                // Handle memory allocation failure
+                exit(1);
+            }
+
+            // Add the pointer to the dynamic array
+            tran_components = (component**) realloc(tran_components, (tran_components_size + 1) * sizeof(component*));
+            if (tran_components == NULL) {
+                // Handle memory reallocation failure
+                exit(1);
+            }
+
+            // Add the pointer to the current component
+            tran_components[tran_components_size] = curr;
+
+            // Increment the size
+            tran_components_size++;
+        }
+
+        // Move to the next component in the linked list
+        curr = curr->next;
+    }
+    
+    if (tran_method == BE) {
+
+        // Step 2: Create the A matrix 
+
+        // LHS = A + C/h
+        sparse_tran_LHS = cs_add(sparse_cc_A, sparse_cc_C, 1, 1/tran_time_step);
+
+
+        // Step 3: For every time, create the b vector and call the matching solver
+        double t;
+
+        for (t=0+tran_time_step; t<=tran_fin_time; t=t+tran_time_step) {
+
+            // Create 1/h*Cx(tk-1)
+
+            gsl_vector_set_zero(gsl_Cx);
+            cs_gaxpy_with_gsl_x(sparse_cc_C, prev_gsl_x, gsl_Cx);
+            gsl_vector_scale(gsl_Cx, 1/tran_time_step);
+
+            // Create e(tk)
+            create_BE_b_vector(temp_gsl_b, tran_components, tran_components_size, t);
+
+            // b vector is e(tk) + 1/h*Cx(tk-1)
+            gsl_vector_memcpy(gsl_e, temp_gsl_b);
+            gsl_vector_add(gsl_e, gsl_Cx);
+
+            // Solve the system
+            solve_tran_sweep_system_sparse(gsl_e, sparse_tran_LHS, curr_gsl_x, t);
+
+            // Current x becomes previous x
+            gsl_vector_memcpy(prev_gsl_x, curr_gsl_x);
+
+        }
+    }
+
+     else {// if TR
+
+            
+        // LHS = A + 2C/h
+        sparse_tran_LHS = cs_add(sparse_cc_A, sparse_cc_C, 1, 2/tran_time_step);
+        sparse_tran_RHS = cs_add(sparse_cc_A, sparse_cc_C, 1, -2/tran_time_step);
+
+        // e(tk-1)
+        gsl_vector_memcpy(prev_temp_gsl_b, temp_gsl_b);
+
+        // Step 3: For every time, create the b vector and call the matching solver
+        double t;
+
+        for (t=0+tran_time_step; t<=tran_fin_time; t=t+tran_time_step) {
+
+            // Create (G-2C/h)*x(tk-1)
+
+            gsl_vector_set_zero(gsl_A2x);
+            cs_gaxpy_with_gsl_x(sparse_tran_RHS, prev_gsl_x, gsl_A2x);
+            //gsl_vector_scale(gsl_A2x, 1/tran_time_step);
+
+            // Create e(tk)
+            create_BE_b_vector(temp_gsl_b, tran_components, tran_components_size, t);
+
+            // Create e(tk-1) - (G-2C/h)*x(tk-1)
+            gsl_vector_sub(prev_temp_gsl_b, gsl_A2x);
+
+            // Create e(tk) + e(tk-1) - (G-2C/h)*x(tk-1)
+            gsl_vector_memcpy(gsl_e, temp_gsl_b);
+            gsl_vector_add(gsl_e, prev_temp_gsl_b);
+
+            // Solve the system
+
+            solve_tran_sweep_system_sparse(gsl_e, sparse_tran_LHS, curr_gsl_x, t);
+
+            // Current x becomes previous x
+            gsl_vector_memcpy(prev_gsl_x, curr_gsl_x);
+            // Current e becomes previous e
+            gsl_vector_memcpy(prev_temp_gsl_b, temp_gsl_b);
+
+        }
 
     }
 }
@@ -410,22 +617,22 @@ void solve_dc_system(int solver_type) {
         gsl_linalg_cholesky_solve(gsl_chol, gsl_b, gsl_x);
     }
     else if (solver_type == CG_SOL){
-        solve_cg(gsl_b, gsl_x);
+        solve_cg(gsl_A, gsl_b, gsl_x);
     }
     else if (solver_type == BICG_SOL){
-        solve_bicg(gsl_b, gsl_x);
+        solve_bicg(gsl_A, gsl_b, gsl_x);
     }
     else if (solver_type == SPARSE_LU_SOL){
-        solve_sparse_lu(gsl_b, gsl_x);
+        solve_sparse_lu(sparse_cc_A, gsl_b, gsl_x);
     }
     else if (solver_type == SPARSE_CHOL_SOL){
-        solve_sparse_chol(gsl_b, gsl_x);
+        solve_sparse_chol(sparse_cc_A, gsl_b, gsl_x);
     }
     else if (solver_type == SPARSE_CG_SOL){
-        solve_sparse_cg(gsl_b, gsl_x);
+        solve_sparse_cg(sparse_cc_A, gsl_b, gsl_x);
     }
     else if (solver_type == SPARSE_BICG_SOL){
-        solve_sparse_bicg(gsl_b, gsl_x);
+        solve_sparse_bicg(sparse_cc_A, gsl_b, gsl_x);
     }
 
     t2 = clock();
@@ -518,6 +725,7 @@ void create_BE_b_vector(gsl_vector *temp_gsl_b, component **tran_components, int
 
 }
 
+// Solves the tran system for the respective time, for non-sparse solvers
 void solve_tran_sweep_system(gsl_vector *temp_gsl_b, gsl_matrix* gsl_A, gsl_vector *curr_gsl_x, double t) {
 
     // Solve the system based on the solver flag, generated during parsing
@@ -526,26 +734,49 @@ void solve_tran_sweep_system(gsl_vector *temp_gsl_b, gsl_matrix* gsl_A, gsl_vect
         solve_LU_with_args(gsl_A, curr_gsl_x, temp_gsl_b);
     }
     else if (solver_type == CHOL_SOL) {
-        gsl_linalg_cholesky_solve(gsl_A, temp_gsl_b, curr_gsl_x);
+        solve_chol_with_args(gsl_A, curr_gsl_x, temp_gsl_b);
     }
-    // else if (solver_type == CG_SOL) {
-    //     solve_cg(temp_gsl_b, temp_gsl_x);
-    // }
-    // else if (solver_type == BICG_SOL) {
-    //     solve_bicg(temp_gsl_b, temp_gsl_x);
-    // }
-    // else if (solver_type == SPARSE_LU_SOL) {
-    //     solve_sparse_lu(temp_gsl_b, temp_gsl_x);
-    // }
-    // else if (solver_type == SPARSE_CHOL_SOL) {
-    //     solve_sparse_chol(temp_gsl_b, temp_gsl_x);
-    // }
-    // if (solver_type == SPARSE_CG_SOL) {
-    //     solve_sparse_cg(temp_gsl_b, temp_gsl_x);
-    // }
-    // else if (solver_type == SPARSE_BICG_SOL) {
-    //     solve_sparse_bicg(temp_gsl_b, temp_gsl_x);
-    // }
+    else if (solver_type == CG_SOL) {
+        solve_cg(gsl_A, temp_gsl_b, curr_gsl_x);
+    }
+    else if (solver_type == BICG_SOL) {
+        solve_bicg(gsl_A, temp_gsl_b, curr_gsl_x);
+    }
+
+    int i;
+    int plot_node_i;
+    double x_vector_value;
+
+    // Plot_node_i: The index of the node(s) that are to be plotted
+    // Sweep_node_i: The index of the node whose value in the b vector changes
+
+    // Get the values that will be printed to the files, then call add_to_plot_file
+    for (i = 0; i < plot_node_count; i++) {
+        plot_node_i = plot_node_indexes[i];
+        x_vector_value = gsl_vector_get(curr_gsl_x, plot_node_i);
+        add_to_plot_file(t, x_vector_value, i);
+
+    }
+
+}
+
+// Solves the tran system for the respective time, for non-sparse solvers
+void solve_tran_sweep_system_sparse(gsl_vector *temp_gsl_b, cs* sparse_cc_A, gsl_vector *curr_gsl_x, double t) {
+
+    // Solve the system based on the solver flag, generated during parsing
+    
+    if (solver_type == SPARSE_LU_SOL) {
+        solve_sparse_lu(sparse_cc_A, temp_gsl_b, curr_gsl_x);
+    }
+    else if (solver_type == SPARSE_CHOL_SOL) {
+        solve_sparse_chol(sparse_cc_A, temp_gsl_b, curr_gsl_x);
+    }
+    if (solver_type == SPARSE_CG_SOL) {
+        solve_sparse_cg(sparse_cc_A, temp_gsl_b, curr_gsl_x);
+    }
+    else if (solver_type == SPARSE_BICG_SOL) {
+        solve_sparse_bicg(sparse_cc_A, temp_gsl_b, curr_gsl_x);
+    }
 
     int i;
     int plot_node_i;

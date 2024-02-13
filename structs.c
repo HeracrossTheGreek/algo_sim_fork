@@ -357,6 +357,9 @@ void print_spec_numbers(transient_spec_type spec_type, transient_spec *spec) {
                 printf("%f %f\n", spec->pwl.t[i], spec->pwl.i[i]);
             }
             break;
+        case AC_SPEC:
+            printf("AC_SPEC: %f %f\n", spec->ac.mag, spec->ac.phase);
+            break;
         case NO_SPEC:
             printf("NO_SPEC\n");
             break;

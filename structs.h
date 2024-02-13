@@ -57,13 +57,20 @@ typedef struct {
     double *i;
 } pwl_spec;
 
+// The struct for AC
+typedef struct {
+    double mag;
+    double phase;
+} ac_spec;
+
 // Define the types of transient specs
 typedef enum {
     NO_SPEC,
     EXP_SPEC,
     PULSE_SPEC,
     SIN_SPEC,
-    PWL_SPEC
+    PWL_SPEC,
+    AC_SPEC
 } transient_spec_type;
 
 // Union to represent different transient specs
@@ -72,6 +79,7 @@ typedef union {
     pulse_spec pulse;
     sin_spec sin;
     pwl_spec pwl;
+    ac_spec ac;
 } transient_spec;
 
 // The structure for a component

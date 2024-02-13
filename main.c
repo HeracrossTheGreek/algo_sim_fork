@@ -9,6 +9,9 @@
 #include "gsl.h"
 #include "iter_sol.h"
 #include "sparse_sol.h"
+#include "ac.h"
+
+#include "complex.h"
 
 int A_dim;
 
@@ -16,6 +19,7 @@ int main(int argc, char* argv[]) {
 
     char file_path[40];
 
+    double complex test = 2 + 3*I;
     // If there is no argument (or multiple arguments) exit
     if (argc!=2) {
         printf("Error! No file specified. Use ./spice_sim <file_name>\n");
@@ -95,10 +99,19 @@ int main(int argc, char* argv[]) {
         dc_sweep();
     }
     if (tran_sweep_flag == TRUE) {
-        tran_sweep();
+        if (solver_type<4) tran_sweep();
+        else tran_sweep_sparse();
     }
 
+    int ac_sweep_flag = TRUE;
+    if (ac_sweep_flag == TRUE) {
+        ac_sweep();
+    }
+    
 
+    print_ac_b_vector();
+    print_gsl_vector_complex(gsl_ac_b_vector, A_dim);
+    
     // Close all open files before exiting the program
     for (int i = 0; i < 5; i++) {
         if (filePointers[i] != NULL) {

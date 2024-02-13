@@ -210,11 +210,11 @@ int parse_line(char* line) {
     // strtod converts the string to a float
     value = strtod(token, NULL);
 
-    // String 5: (optional) Parse the type of math function (waveform)
-    token = strtok(NULL, " \t\r\n");
+    // String 5: (optional) Parse the type of math function (waveform), or AC mag and phase
+    token = strtok(NULL, " \t\r\n(");
     if (token != NULL) {
         if (comp_type != 'v' && comp_type != 'i') {
-            printf("Error! Can only have transient specs at V or I component!\n");
+            printf("Error! Can only have transient specs /AC at V or I component!\n");
             return PARSING_ERROR;
         }
 
@@ -339,6 +339,27 @@ int parse_line(char* line) {
             }
 
             my_spec = (transient_spec *) my_pwl_spec;
+
+        }
+
+        else if (AC_SPEC) {
+
+            ac_spec *my_ac_spec;
+            my_ac_spec = (ac_spec*) malloc(sizeof(ac_spec));
+
+            char *tokens[2];
+
+            for (int i=0; i<2; i++) {
+                tokens[i] = strtok(NULL, " \t\r\n");
+                if (tokens[i] == NULL) {
+                    return PARSING_ERROR;
+                }
+            }
+
+            my_ac_spec->mag = strtod(tokens[0], NULL);    // + 1 to ignore the parenthesis at [0]
+            my_ac_spec->phase = strtod(tokens[1], NULL);
+
+            my_spec = (transient_spec *) my_ac_spec;
 
         }
 
@@ -661,6 +682,7 @@ transient_spec_type parse_spec_type(char *token) {
     else if (strcmp(token, "sin")   == 0) return SIN_SPEC;
     else if (strcmp(token, "pulse") == 0) return PULSE_SPEC;
     else if (strcmp(token, "pwl")   == 0) return PWL_SPEC;
+    else if (strcmp(token, "ac")    == 0) return AC_SPEC;
 
     // else if none of that
     return PARSING_ERROR;
